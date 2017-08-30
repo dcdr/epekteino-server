@@ -13,6 +13,11 @@ const socketio = require('feathers-socketio');
 
 const handler = require('feathers-errors/handler');
 const notFound = require('feathers-errors/not-found');
+const local = require('feathers-authentication-local');
+const jwt = require('feathers-authentication-jwt');
+const auth = require('feathers-authentication');
+
+const seeder = require('feathers-seeder');
 
 const middleware = require('./middleware');
 const services = require('./services');
@@ -37,10 +42,44 @@ app.configure(hooks());
 app.configure(rest());
 app.configure(socketio());
 
+app.configure(auth({ secret: 'supersecret' }));
+app.configure(local());
+app.configure(jwt());
+
 // Configure other middleware (see `middleware/index.js`)
 app.configure(middleware);
 // Set up our services (see `services/index.js`)
 app.configure(services);
+
+app.service('authentication').hooks({
+  before: {
+    create: [
+      // You can chain multiple strategies
+      auth.hooks.authenticate(['local', 'jwt'])
+    ],
+    remove: [
+      auth.hooks.authenticate('jwt')
+    ]
+  }
+});
+
+const seedOptions = {
+  delete: true,
+  services: [{
+    path: '/users',
+    randomize: false,
+    template: {
+      login: 'deacon',
+      email: 'epekteino.ambrose@gmail.com',
+      password: '$2a$10$bvBrJyQnqjG/Jic5LOi2PubuWmGR0/9ucf3SiaAWk6oyU.4/uqCXG'
+    }
+  }]
+};
+app.configure(seeder(seedOptions))
+  .seed()
+  .then(() => {
+  });
+
 // Configure a middleware for 404s and the error handler
 app.use(notFound());
 app.use(handler());
